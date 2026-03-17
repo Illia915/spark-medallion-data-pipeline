@@ -1,0 +1,1 @@
+docker exec -it spark-worker-1 /opt/spark/bin/spark-submit --master spark://spark-master:7077 /opt/spark-app/raw_to_bronze.py
