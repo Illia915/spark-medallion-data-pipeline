@@ -14,3 +14,5 @@ wheels/
 # Folder with all data 
 data 
 
+uv.lock
+pyproject.toml
