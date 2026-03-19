@@ -3,7 +3,7 @@ from pathlib import Path
 
 from pyspark.sql import SparkSession
 
-spark = (
+spark = (   
     SparkSession.builder\
         .appName('RawToBronze')\
         .getOrCreate()

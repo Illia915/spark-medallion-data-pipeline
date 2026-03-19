@@ -1,5 +1,4 @@
 
-gender_normalize = {
-    "FEMALE" : "F",
-    "MALE" : "M"
-}
+"""
+1. Crfeate func for SparkSession
+"""
