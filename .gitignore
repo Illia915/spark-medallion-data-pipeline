@@ -16,5 +16,5 @@ pyproject.toml
 
 #data folders 
 data
-
+logs 
 .gitignore
