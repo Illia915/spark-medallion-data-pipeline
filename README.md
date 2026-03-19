@@ -15,7 +15,7 @@ The pipeline automates the data lifecycle from raw data generation to final busi
 4.  **Analytics:** Visualizing the processed insights in Power BI.
 
 ## 🏗 Architecture
-(![Vizualize project architecture](assets\architecture_graph.png))
+(![Vizualize project architecture](assets/architecture_graph.png))
 
 ## 🛠 Tech Stack
 * **Language:** Python 3.x
