@@ -2,31 +2,14 @@ from pathlib import Path
 
 import pyspark.sql.types as T
 import pyspark.sql.functions as F
-from pyspark.sql import SparkSession, Window
+from pyspark.sql import Window, DataFrame
 
 import utils.config as cfg
 
-#Випиши в окремий файл 
-spark = (
-    SparkSession.builder\
-        .appName("BronzeToSilver")\
-        .getOrCreate()
-)
-
-# Винести дані в utils 
-SPARK_APP = Path('/opt/spark-app')
-SPARK_DATA = Path('/opt/spark-data')
-bronze_file_path = Path(SPARK_DATA / f"bronze/*.parquet")
-silver_file_path = Path(SPARK_DATA / f"silver")
-
-
-bronze_df = (
-    spark.read\
-        .parquet(str(bronze_file_path))
-)
-
-def drop_duplicates_by_smallest_date(df):
-    
+def deduplicate_by_earliest_date(df: DataFrame) -> DataFrame:
+    """
+    Removes all duplicates and keeps only the first record based on date.
+    """
     window_spec = Window.partitionBy("transaction_id").orderBy("order_date")
     
     silver_df = (
@@ -37,8 +20,10 @@ def drop_duplicates_by_smallest_date(df):
     
     return silver_df
 
-def correct_shiping_date(df):
-    
+def validate_shipping_dates(df: DataFrame) -> DataFrame:
+    """
+    Validates dates to ensure shipping occurs after or on the order date.
+    """
     silver_df = df.withColumn(
             "ship_date", F.when(F.col("ship_date") < F.col("order_date"), None).otherwise(F.col("ship_date"))
             )
@@ -46,38 +31,48 @@ def correct_shiping_date(df):
     return silver_df 
 
 
-def cleaning_invalid_quantity_value(df):
-    
+def filter_positive_quantities(df: DataFrame) -> DataFrame:
+    """
+    Keeps only records where the quantity is greater than zero.
+    """
     silver_df = df.filter(F.col("quantity") > 0)
     
     return silver_df
 
-def cleaning_invalid_unit_price_value(df):
-    
+def validate_unit_prices(df: DataFrame) -> DataFrame:
+    """
+    Keeps only records with positive unit price values.
+    """
     silver_df = (
         df.withColumn("unit_price", F.when(F.col("unit_price") <= 0, None).otherwise(F.col("unit_price")))
     )
     
     return silver_df
 
-def cleaning_invalid_discount_pct_value(df):
-    
+def filter_valid_discounts(df: DataFrame) -> DataFrame:
+    """
+    Keeps only records where the discount percentage is between 0 and 100.
+    """
     silver_df = (
         df.withColumn("discount_pct", F.when(F.col("discount_pct") > 100, None).otherwise(F.col("discount_pct")))
     )
     
     return silver_df
 
-def age_cleaning(df):
-
+def nullify_invalid_age(df: DataFrame) -> DataFrame:
+    """
+    Replaces invalid age values with NULL.
+    """
     silver_df = df.withColumn(
         "customer_age", F.when((F.col("customer_age") < 15) | (F.col("customer_age") > 110), None)
                     .otherwise(F.col("customer_age")))
     
     return silver_df
 
-def gender_cleaning(df):
-    
+def normalize_gender_values(df: DataFrame) -> DataFrame:
+    """
+    Normalizes values in the gender column (e.g., to 'M' and 'F').
+    """
     silver_df = df.withColumn(
     "gender", 
     F.when(F.upper(F.col("gender")) == "MALE", "M")
@@ -87,8 +82,10 @@ def gender_cleaning(df):
    
     return silver_df
         
-def payment_cleaning(df):
-    
+def filter_allowed_payment_types(df: DataFrame) -> DataFrame:
+    """
+    Replaces values not found in the predefined list with NULL.
+    """
     silver_df = df.withColumn(
         "payment_type", 
         F.when(F.col("payment_type").isin(["Card", "UPI", "COD"]), F.col("payment_type"))
@@ -98,16 +95,23 @@ def payment_cleaning(df):
     return silver_df
 
 def main():
-    silver_df_one = drop_duplicates_by_smallest_date(bronze_df)
-    silver_df_two = correct_shiping_date(silver_df_one)
-    silver_df_three = cleaning_invalid_quantity_value(silver_df_two)
-    silver_df_four =  cleaning_invalid_unit_price_value(silver_df_three)
-    silver_df_five  =  cleaning_invalid_discount_pct_value(silver_df_four)
-    silver_df_six = age_cleaning(silver_df_five)
-    silver_df_seven = gender_cleaning(silver_df_six)
-    silver_df_eight = payment_cleaning(silver_df_seven)
+    spark = cfg.create_session("BronzeToSilver")
+
+    bronze_df = (spark.read.parquet(str(cfg.BRONZE_RETAIL_SOURCE)))
     
-    silver_df_eight.write.mode("overwrite").parquet(str(silver_file_path))
+    silver_df = (
+        bronze_df
+        .transform(deduplicate_by_earliest_date)
+        .transform(validate_shipping_dates)
+        .transform(filter_positive_quantities)
+        .transform(validate_unit_prices)
+        .transform(filter_valid_discounts)
+        .transform(nullify_invalid_age)
+        .transform(normalize_gender_values)
+        .transform(filter_allowed_payment_types)
+    )
+    
+    silver_df.write.mode("overwrite").parquet(str(cfg.SILVER_SINK))
 
 if __name__ == "__main__":
     main()

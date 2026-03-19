@@ -15,9 +15,6 @@ uv.lock
 pyproject.toml
 
 #data folders 
-data/raw 
-data/bronze 
-data/silver
-data/gold
+data
 
 .gitignore
